@@ -183,10 +183,10 @@ def train(data, attributes):
         class_negative=result[np.where(result[:]<0)]
         if(len(class_positive)>=len(class_negative)):
             root.set_tag(1);
-            print "POSITIVE"
+            #print "POSITIVE"
         else:
             root.set_tag(-1);
-            print "NEGATIVE"
+            #print "NEGATIVE"
         #print ">>>>>>>>>>>>>>"
     return root
 
