@@ -6,14 +6,27 @@ import csv
 from numpy import genfromtxt
 import numpy as np
 import math
+import resource, sys
 
-
+#resource.setrlimit(resource.RLIMIT_STACK, (2**29,-1))
+#sys.setrecursionlimit(10**6)
+# Contain the name, index, type and options of an feature
+# Name can be age, sex, pain_type, blood_pressure, cholestoral, blood_suger, electrocardiographic, max_heart_rate,
+#       exercise, oldpeak, slope, vessels and thal
+# Index is the feature number starting from 0 to 12
+# Type can Real, Binary, Nominal
+# Options is different values that this feature can get for example for a binary feature options are 0,1
+#   for a real feature options are the max and min of the train data. Real features have a attribute named split_point which
+#   indicate the best x value to split the data.
 class attribute:
     def __init__(self, name, index, type, options):
         self.name=name
         self.index=index
         self.type=type
         self.options=options
+    # return the entropy considering the data. This function could be in the decision_node class but I prefered to put all the
+    #   computational functions in this class. Since each decision_node class has a attribute class in it.
+    # Entropy(t)= -Sigma(p(j|t)log p(j|t))
     def get_entropy(self, data):
         result=data[:,13]
         if len(result)>0:
@@ -31,6 +44,11 @@ class attribute:
             return -(right+left)
         else:
             return 0
+    # This function is used for real attributes. It returns the best X value to split the data.
+    # f(x)= wx+b This is the splitting line
+    # And these are two equation to solve:
+    #   (wx + b1 - y)Tx=0
+    #   (wx + b1 - y)T1=0
     def get_splited_data(self, data):
         toRet=[]
         feature_data=data[:,self.index]
@@ -45,14 +63,17 @@ class attribute:
                 toRet.append(in_option)
 
         return toRet
-
+    # This function calculate the gain of spliting based on this attribute.
+    # Gain = Entropy(parent)- Sigma( Ni/N Entropy(i) )
+    # Entropy parent subracted by weighted summation of Entropy of the childs
     def gain(self, data):
         feature_data=data[:,self.index]
         result=data[:,13]
 
         parent_entropy=self.get_entropy(data)
         childs_entropy=0
-
+        # If the attribute is a Real type attribute we need to calculate gain based
+        #   on the spliting point. otherwise we need to consider the options
         if self.type=='Real':
             self.split_point=self.findBestSplitPoint(data)
 
@@ -126,7 +147,8 @@ class attribute:
         ##print "w,b:"+str(w)+"  "+str(b)
         return -b/w
 
-
+# This class is represetation of each node in the decision tree
+#
 class decision_node:
     def __init__(self):
         #self.attribute=attribute
@@ -157,10 +179,16 @@ def kfold(data, k):
     fold_size=math.floor(len(data)/k);
     return fold_size;
 
-
+# This function is the core for the decision tree
+# This function will be called recursively and will go in depth till it reaches
+#   the point with smaller entropy compare to threshold. If That happens we need
+#   to tag this leaf.
+# This frist is going to select the best attribute to split the data( based on Gain)
+#   and then its going to create the childs of this division and recursively called
+#   itself till it reaches a leaf node
 def train(data, attributes):
     #raw_input('Enter your input:')
-    threshold=0.5
+    threshold=0.7
     root= decision_node()
     if attributes[0].get_entropy(data)>threshold:
         gains=[]
@@ -201,6 +229,8 @@ def main():
     # Ordered:11,
     # Binary: 2,6,9
     # Nominal:7,3,13
+
+    # Construction of attributes
     age= attribute('age', 0, 'Real', [29,77])
     sex= attribute('sex', 1, 'Binary', [0,1])
     pain_type= attribute('pain_type', 2, 'Nominal', [1.0,2.0,3.0,4.0])
@@ -232,28 +262,35 @@ def main():
     #np.random.shuffle(data)
     k_fold=5
     fold_size=kfold(data,k_fold)
-    test_result=[]
     for i in range(k_fold):
+        print ">> Fold number "+ str(i)
+        test_result=[]
         test_data=data[int(i*fold_size):int((i+1)*fold_size),:]
         train_data=np.delete(data, range(int(i*fold_size),int((i+1)*fold_size)), 0)
         decision_tree=train(train_data,attributes)
         for toTest in test_data:
             test_result.append(decision_tree.predict(toTest))
-    ##print fold_size
-    TP=0
-    FP=0
-    TN=0
-    FN=0
-    for i in range(len(test_result)):
-        if test_result[i]==data[i,13] and data[i,13]==1:
-            TP+=1
-        if test_result[i]==data[i,13] and data[i,13]==-1:
-            TN+=1
-        if test_result[i]==-1 and data[i,13]==1:
-            FN+=1
-        if test_result[i]==1 and data[i,13]==-1:
-            FP+=1
-
-    print str(TP) + "  "+ str(FN)
-    print str(FP) + "  "+ str(TN)
+        ##print fold_size
+        TP=0
+        FP=0
+        TN=0
+        FN=0
+        # Printing the consusion Matrix
+        for i in range(len(test_result)):
+            if test_result[i]==data[i,13] and test_data[i,13]==1:
+                TP+=1
+            if test_result[i]==data[i,13] and test_data[i,13]==-1:
+                TN+=1
+            if test_result[i]==-1 and test_data[i,13]==1:
+                FN+=1
+            if test_result[i]==1 and test_data[i,13]==-1:
+                FP+=1
+        precision=TP/float(TP+FP)
+        recall=TP/float(TP+FN)
+        print str(TP) + "  "+ str(FN)
+        print str(FP) + "  "+ str(TN)
+        print "accuracy:"+ str((TP+TN)/float(TP+FP+FN+TN))
+        print "precision:"+ str(precision)
+        print "recall:"+ str(recall)
+        print "F1-measure:"+ str(2*precision*recall/float(precision+recall))
 main()
